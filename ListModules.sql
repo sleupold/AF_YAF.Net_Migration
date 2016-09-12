@@ -1,6 +1,6 @@
 -- the following query lists all ACTIVE Forums modules in your DNN - with the pages they reside on.
 -- note: only forum modules with ForumType "Standard" can be migrated (due to YAF.Net not supporting DNN Social Groups atm).
--- AF Modules can be migrated one by one only - note the proper ModuleID and enter it into script "Migrate_Forums.sql"
+-- AF Modules can be migrated one by one only - note the proper ModuleID and enter it into script "MigrateForums.sql"
 
 SELECT DISTINCT 
 	G.ModuleId,
