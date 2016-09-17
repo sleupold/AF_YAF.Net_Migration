@@ -8,14 +8,20 @@
    *******************************************************************
 */
 -- extend table structure to perform the conversion
-IF NOT Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_board')    and name = N'oModuleID')
-  ALTER TABLE dbo.yaf_board    ADD oModuleID Int Null;
+IF NOT Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_Board')    and name = N'oModuleID')
+  ALTER TABLE dbo.yaf_board    ADD oModuleID  Int Null;
 
-IF NOT Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_category') and name = N'oGroupID')
-  ALTER TABLE dbo.yaf_category ADD oGroupID  Int Null;
+IF NOT Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_Category') and name = N'oGroupID')
+  ALTER TABLE dbo.yaf_category ADD oGroupID   Int Null;
 
-IF NOT Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_forum')    and name = N'oForumID')
-  ALTER TABLE dbo.yaf_forum    ADD oForumID  Int Null;
+IF NOT Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_Forum')    and name = N'oForumID')
+  ALTER TABLE dbo.yaf_forum    ADD oForumID   Int Null;
+
+IF NOT Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_Topic')    and name = N'oTopicID')
+  ALTER TABLE dbo.yaf_Topic    ADD oTopicID   Int Null;
+
+IF NOT Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_Message')    and name = N'oContentID')
+  ALTER TABLE dbo.yaf_Message  ADD oContentID Int Null;
 
 
 GO
@@ -31,6 +37,9 @@ DECLARE @tplCategoryID int = 1;
 DECLARE @tplForumID    int = 1;
 /* -------------------------------------------------- */
 -- N'0;13;|1134;||'
+-- Get PortalID:
+DECLARE @oPortalID int = (SELECT PortalID FROM dbo.Modules WHERE ModuleID = @oModuleID);
+
 -- Create YAF.Net Boards in table yaf_board
 INSERT INTO dbo.yaf_Board 
        (Name, allowThreaded, MembershipAppName, RolesAppName, oModuleID) 
@@ -63,11 +72,15 @@ USING (SELECT RoleName FROM dbo.Roles
 WHEN NOT MATCHED THEN INSERT (BoardID, [Name],    [Flags], PMLimit, Style, SortOrder, Description, UsrSigChars, UsrSigBBCodes, UsrSigHTMLTags, UsrAlbums, UsrAlbumImages, IsHidden, IsUserGroup) 
                       VALUES (@BoardID, S.RoleName,     0,       0,  Null,       100,         N'',           0,           N'',            N'',         0,              0,        0,           0);
 
+-- Create aspnet_roles:
+
 -- Populate Ranks:
 MERGE INTO dbo.yaf_Rank T
 USING (SELECT * FROM dbo.yaf_Rank WHERE BoardID = @tplBoardID) S ON T.BoardID = @BoardID AND T.Name = S.Name
 WHEN NOT MATCHED THEN INSERT ( BoardID,   [Name],   MinPosts,   RankImage,   Flags,   PMLimit,   Style,   SortOrder,   Description,   UsrSigChars,   UsrSigBBCodes,   UsrSigHTMLTags,   UsrAlbums,   UsrAlbumImages)
                       VALUES (@BoardID, S.[Name], S.MinPosts, S.RankImage, S.Flags, S.PMLimit, S.Style, S.SortOrder, S.Description, S.UsrSigChars, S.UsrSigBBCodes, S.UsrSigHTMLTags, S.UsrAlbums, S.UsrAlbumImages);
+
+DECLARE @newRank smallint = (SELECT RankId FROM dbo.yaf_Rank WHERE BoardID = @boardID AND MinPosts = 0);
 
 -- Populate Smileys: 
 MERGE INTO dbo.yaf_Smiley T
@@ -119,33 +132,84 @@ WHEN NOT MATCHED THEN INSERT (ApplicationID, RoleID, RoleName, LoweredRoleName, 
                       VALUES (@appGuid,  NewID(), S.Name, Lower(S.Name), Null);
 
 -- Populate Users: 
+DECLARE @DefaultTimeZoneOffset SmallInt = (SELECT TimezoneOffset FROM dbo.Portals WHERE PortalID = @oPortalID);
+DECLARE @TZPropertyID          Int      = (SELECT PropertyDefinitionID FROM dbo.ProfilePropertyDefinition WHERE PortalID = @oPortalID
+                                            AND DataType = (SELECT EntryID FROM dbo.Lists WHERE ListName = N'DataType' AND Value = N'TimeZone'));
+DECLARE @BDPropertyID          Int      = (SELECT PropertyDefinitionID FROM dbo.ProfilePropertyDefinition WHERE PortalID = @oPortalID AND PropertyName = N'Birthday');
+DECLARE @CNPropertyID          Int      = (SELECT PropertyDefinitionID FROM dbo.ProfilePropertyDefinition WHERE PortalID = @oPortalID AND PropertyName = N'Country');
+DECLARE @RGPropertyID          Int      = (SELECT PropertyDefinitionID FROM dbo.ProfilePropertyDefinition WHERE PortalID = @oPortalID AND PropertyName = N'Region');
+DECLARE @CYPropertyID          Int      = (SELECT PropertyDefinitionID FROM dbo.ProfilePropertyDefinition WHERE PortalID = @oPortalID AND PropertyName = N'City');
+DECLARE @WSPropertyID          Int      = (SELECT PropertyDefinitionID FROM dbo.ProfilePropertyDefinition WHERE PortalID = @oPortalID AND PropertyName = N'Website');
+
    -- guest user:
 MERGE INTO dbo.yaf_user T
 USING (SELECT * FROM dbo.yaf_User WHERE BoardID = @tplBoardID AND Name = N'Guest') S ON T.BoardID = @BoardID and T.Name = S.Name
-WHEN NOT MATCHED THEN INSERT ( BoardID,   ProviderUserKey,   Name,   DisplayName,   Password,   Email,   Joined,   LastVisit,   IP,   NumPosts,   TimeZone,   Avatar,   Signature,   AvatarImage,   AvatarImageType,   RankID,   Suspended,   SuspendedReason,   SuspendedBy,   LanguageFile,   ThemeFile,   TextEditor,   OverridedefaultThemes,   PMNotification,   AutoWatchTopics,   DailyDigest,   NotificationType,   Flags,   Points,   IsApproved,   IsGuest,   IsCaptchaExcluded,   IsActiveExcluded,   IsDST,   IsDirty,   Culture,   IsFacebookUser,   IsTwitterUser,   UserStyle,   StyleFlags,   IsUserStyle,   IsGroupStyle,   IsRankStyle,   IsGoogleUser) 
-                      VALUES (@BoardID, S.ProviderUserKey, S.Name, S.DisplayName, S.Password, S.Email, S.Joined, S.LastVisit, S.IP, S.NumPosts, S.TimeZone, S.Avatar, S.Signature, S.AvatarImage, S.AvatarImageType, S.RankID, S.Suspended, S.SuspendedReason, S.SuspendedBy, S.LanguageFile, S.ThemeFile, S.TextEditor, S.OverridedefaultThemes, S.PMNotification, S.AutoWatchTopics, S.DailyDigest, S.NotificationType, S.Flags, S.Points, S.IsApproved, S.IsGuest, S.IsCaptchaExcluded, S.IsActiveExcluded, S.IsDST, S.IsDirty, S.Culture, S.IsFacebookUser, S.IsTwitterUser, S.UserStyle, S.StyleFlags, S.IsUserStyle, S.IsGroupStyle, S.IsRankStyle, S.IsGoogleUser);
+WHEN NOT MATCHED THEN INSERT ( BoardID,   ProviderUserKey,   Name,   DisplayName,   Password,   Email,   Joined,   LastVisit,   IP,   NumPosts,   TimeZone,   Avatar,   Signature,   AvatarImage,   AvatarImageType,   RankID,   Suspended,   SuspendedReason,   SuspendedBy,   LanguageFile,   ThemeFile,   TextEditor,   OverridedefaultThemes,   PMNotification,   AutoWatchTopics,   DailyDigest,   NotificationType,   Flags,   Points,   Culture,   IsFacebookUser,   IsTwitterUser,   UserStyle,   StyleFlags,   IsGoogleUser) 
+                      VALUES (@BoardID, S.ProviderUserKey, S.Name, S.DisplayName, S.Password, S.Email, S.Joined, S.LastVisit, S.IP, S.NumPosts, S.TimeZone, S.Avatar, S.Signature, S.AvatarImage, S.AvatarImageType, S.RankID, S.Suspended, S.SuspendedReason, S.SuspendedBy, S.LanguageFile, S.ThemeFile, S.TextEditor, S.OverridedefaultThemes, S.PMNotification, S.AutoWatchTopics, S.DailyDigest, S.NotificationType, S.Flags, S.Points, S.Culture, S.IsFacebookUser, S.IsTwitterUser, S.UserStyle, S.StyleFlags, S.IsGoogleUser);
 
    -- all other users, who ever created a post:
-MERGE INTO dbo.yaf_user T
-USING (SELECT * FROM dbo.vw_xUsers) S ON T.BoardID = @BoardID and T.Name = S.Name
-WHEN NOT MATCHED THEN INSERT ( BoardID,   ProviderUserKey,   Name,   DisplayName,   Password,   Email,   Joined,   LastVisit,   IP,   NumPosts,   TimeZone,   Avatar,   Signature,   AvatarImage,   AvatarImageType,   RankID,   Suspended,   SuspendedReason,   SuspendedBy,   LanguageFile,   ThemeFile,   TextEditor,   OverridedefaultThemes,   PMNotification,   AutoWatchTopics,   DailyDigest,   NotificationType,   Flags,   Points,   IsApproved,   IsGuest,   IsCaptchaExcluded,   IsActiveExcluded,   IsDST,   IsDirty,   Culture,   IsFacebookUser,   IsTwitterUser,   UserStyle,   StyleFlags,   IsUserStyle,   IsGroupStyle,   IsRankStyle,   IsGoogleUser) 
-                      VALUES (@BoardID, ...);
+WITH xUsers AS 
+	(SELECT U.*, 
+	        A.UserId AS UserKey, 
+			P.Signature,
+			P.Avatar,
+			IsNull(cast(PropertyValue AS smallint), @DefaultTimeZoneOffset) AS TZOffset 
+    FROM      dbo.Users                     U
+         JOIN dbo.aspnet_users              A ON U.UserName = A.UserName
+	     JOIN dbo.activeforums_UserProfiles P ON U.UserID   = P.UserId AND P.PortalId = @oPortalID
+	LEFT JOIN dbo.UserProfile               T ON U.UserID   = T.UserID AND T.PropertyDefinitionID = @TZPropertyID 
+  ) 
+	MERGE INTO dbo.yaf_user T
+	USING xUsers S ON T.BoardID = @BoardID and T.Name = S.UserName
+	WHEN NOT MATCHED THEN INSERT ( BoardID, ProviderUserKey,       Name,   DisplayName, Password,   Email,   Joined,  LastVisit,   IP, NumPosts,   TimeZone,   Avatar,   Signature, AvatarImage, AvatarImageType,   RankID, Suspended, SuspendedReason, SuspendedBy, LanguageFile, ThemeFile, TextEditor, OverridedefaultThemes, PMNotification, AutoWatchTopics, DailyDigest, NotificationType, Flags, Points, Culture, IsFacebookUser, IsTwitterUser, UserStyle, StyleFlags, IsGoogleUser) 
+						  VALUES (@BoardID,       S.UserKey, S.UserName, S.DisplayName,    N'na', S.Email, GetDate(), GetDate(), Null,        0, S.TZOffset, S.Avatar, S.Signature,        Null,            Null, @newRank,         0,            Null,           0,         Null,      Null,       Null,                     1,              1,               0,           0,                0,     2,      0,    Null,           Null,          Null,      Null,          0,            0);
 
 -- Populate UserProfile: 
-MERGE INTO dbo.yaf_userProfile T
-USING (SELECT * FROM dbo.vw_xProfile) S ON T.BoardID = @BoardID and T.UserID = S.UserID
-WHEN NOT MATCHED THEN INSERT ()
-                      VALUES ();
+WITH xProfile AS 
+	(SELECT Y.UserID,
+	        U.Username,
+			U.DisplayName,
+	        U.LastModifiedOnDate AS LastUpdatedDate,
+	        P.DateLastActivity   AS LastActivity,
+			Cast(IsNull(BD.PropertyValue, '1903-01-01T00:00.00') as date) AS BirthDay,
+			CN.PropertyText  AS Country,
+			RG.PropertyText  AS Region,
+			CY.PropertyValue AS City,
+			WS.PropertyValue AS Website
+	  FROM      dbo.yaf_User                  Y
+	  JOIN      dbo.Users                     U  ON Y.Name	  = U.Username AND Y.BoardID  = @boardID 
+	  JOIN      dbo.activeforums_UserProfiles P  ON U.UserID  = P.UserId   AND P.PortalId = @oPortalID
+	  LEFT JOIN dbo.UserProfile               BD ON U.UserID  = BD.UserID  AND BD.PropertyDefinitionID = @BDPropertyID
+	  LEFT JOIN dbo.UserProfile               CN ON U.UserID  = CN.UserID  AND CN.PropertyDefinitionID = @CNPropertyID
+	  LEFT JOIN dbo.UserProfile               RG ON U.UserID  = RG.UserID  AND RG.PropertyDefinitionID = @RGPropertyID
+	  LEFT JOIN dbo.UserProfile               CY ON U.UserID  = BD.UserID  AND BD.PropertyDefinitionID = @BDPropertyID
+	  LEFT JOIN dbo.UserProfile               WS ON U.UserID  = WS.UserID  AND WS.PropertyDefinitionID = @WSPropertyID
+	)
+	MERGE INTO dbo.yaf_userProfile T
+	USING xProfile S ON T.UserID = S.UserID
+	WHEN NOT MATCHED THEN INSERT (  UserID,   LastUpdatedDate,   LastActivity, ApplicationName, IsAnonymous,   UserName, Gender,   Blog,   RealName, Interests, Skype, Facebook, Location, BlogServiceUrl,   Birthday, LastSyncedWithDNN, ICQ,   City, MSN, TwitterId, Twitter, BlogServicePassword,   Country, Occupation,   Region, AIM, XMPP, YIM, Google, BlogServiceUsername, GoogleId,  Homepage, FacebookId)
+						  VALUES (S.UserID, S.LastUpdatedDate, S.LastActivity,   N'DotNetNuke',           0, S.UserName,      0, N'', S.DisplayName,       N'',   N'',      N'',      N'',            N'', S.Birthday,              Null, N'', S.City, N'',      Null,     N'',                 N'', S.Country,        N'', S.Region, N'',  N'', N'',    N'',                 N'',     Null, S.Website, Null);
 
 -- Populate UserGroups:
-MERGE INTO dbo.yaf_userGroup T
-USING (SELECT UserId, GroupID FROM ) S ON T.UserID = S.UserID and T.GroupID = S.GroupID
-WHEN NOT MATCHED THEN INSERT (UserID, GroupID) VALUES (S.UserID, S.GroupID);
+With S AS 
+	(SELECT Y.UserId, 
+	        G.GroupID 
+	  FROM dbo.UserRoles X
+	  JOIN dbo.Roles     R ON X.RoleID = R.RoleID AND R.PortalID = @oPortalID
+	  JOIN dbo.yaf_Group G ON R.RoleName = G.Name AND G.BoardID  = @BoardID
+	  JOIN dbo.Users     U ON X.UserID   = U.UserID
+	  JOIN dbo.yaf_User  Y ON U.Username = Y.Name AND Y.BoardID  = @BoardID
+	) 
+	MERGE INTO dbo.yaf_userGroup T
+	USING S ON T.UserID = S.UserID and T.GroupID = S.GroupID
+	WHEN NOT MATCHED THEN INSERT (UserID, GroupID) VALUES (S.UserID, S.GroupID);
 
 -- Populate aspnet_usersInRoles:
+/* /// Skipped due to logical bugs in YAF (missing dependency on boardid), doesn't seem to be used
 MERGE INTO dbo.aspnet_usersInRoles T
-USING (SELECT UserId, RoleID FROM ) S ON T.UserID = S.UserID and T.RoleID = S.RoleID
+USING (SELECT UserId, RoleID FROM dbo.UserRoles) S ON T.UserID = S.UserID and T.RoleID = S.RoleID
 WHEN NOT MATCHED THEN INSERT (UserID, RoleID) VALUES (S.UserID, S.RoleID);
+*/
 
 -- Copy AF Forum Groups to YAF.Net Categories:
 MERGE INTO dbo.yaf_category T
@@ -162,22 +226,81 @@ USING (SELECT F.*, C.CategoryID
 WHEN NOT MATCHED THEN INSERT (  CategoryID, ParentID, [Name],  Description, SortOrder, Flags, IsLocked, isHidden, IsNoCount, IsModerated, ThemeURL, PollGroupID, ImageURL, Styles, IsModeratedNewTopicOnly, oForumID) 
                       VALUES (S.CategoryID, Null, S.ForumName, S.ForumDesc, S.SortOrder,   4,        0,        0,         1,           0,     Null,        Null,     Null,   Null,                      0, S.ForumID);
 
--- Copy Threads:
+-- Create Threads:
 MERGE INTO dbo.yaf_topic T
-USING (SELECT ) S
-WHEN NOT MATCHED THEN INSERT ()
-                      VALUES ();
--- Copy Posts/replies:
+USING (SELECT T.*, 
+              X.LastPostDate, 
+			  X.LastReplyDate,
+			  X.LastReplyID,
+			  C.AuthorID,
+			  C.AuthorName,
+			  C.Subject,
+			  C.DateCreated,
+			  C.Summary,
+			  C.Body,
+			  A.AuthorID    as RAuthorID,
+			  A.AuthorName  AS RAuthorName,
+			  IsNull((SELECT COUNT(1) FROM dbo.ActiveForums_Replies), 0) + 1 as NumPosts,
+              F.oForumID 
+        FROM  dbo.ActiveForums_Content     C
+		JOIN  dbo.ActiveForums_Topics      T ON T.ContentID = C.ContentID
+		JOIN  dbo.ActiveForums_ForumTopics X ON T.TopicID   = X.TopicID
+		LEFT JOIN dbo.ActiveForums_Replies R ON R.ReplyID   = X.LastReplyID
+		JOIN  dbo.ActiveForums_Content     A ON R.ContentID = A.ContentID
+		JOIN  dbo.yaf_forum                F ON X.Forumid   = F.oForumID
+		WHERE C.isDeleted = 0
+      ) S ON T.oTopicID = S.TopicID
+WHEN NOT MATCHED THEN INSERT (   ForumID,     UserID, UserName, UserDisplayName,        Posted,     Topic, Description, Status,   Styles, LinkDate, Views, Priority, PollID, TopicMovedID,      LastPosted, LastMessageID,  LastUserID, LastUserName, LastUserDisplayName,   NumPosts, Flags, AnswerMessageId, LastMessageFlags, TopicImage, oTopicID)
+                      VALUES (S.oForumID, S.AuthorID,     Null,    S.AuthorName, S.DateCreated, S.Subject,   S.Summary,    N'',      N'',     Null,     0,        0,   Null,         Null, S.LastReplyDate, S.LastReplyID, S.RAuthorID,         Null,       S.RAuthorName, S.TopicID,    529,            Null,              529,       Null,  TopicID);
+					  
+-- Copy Posts & Replies:
 MERGE INTO dbo.yaf_Message T
-USING (SELECT ) S
-WHEN NOT MATCHED THEN INSERT ()
-                      VALUES ();
+USING (SELECT C.ContentID,
+              C.AuthorID,
+			  C.AuthorName,
+              C.Subject,
+			  C.Body,
+			  C.DateCreated,
+			  C.IPAddress,
+			  Y.TopicID 
+        FROM dbo.ActiveForums_Topics  R
+		JOIN dbo.ActiveForums_Content C ON R.ContentID  = C.ContentID
+		JOIN dbo.yaf_Topic            Y ON R.TopicID    = Y.oTopicID) S ON T.oContentID = S.ContentID
+WHEN NOT MATCHED THEN INSERT (  TopicID, ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited, Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
+                      VALUES (S.TopicID,    Null,        0,      0, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   529,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
+
+MERGE INTO dbo.yaf_Message T
+USING (SELECT C.ContentID,
+              C.AuthorID,
+			  C.AuthorName,
+              C.Subject,
+			  C.Body,
+			  C.DateCreated,
+			  C.IPAddress,
+			  Y.TopicID,
+			  M.MessageID
+        FROM dbo.ActiveForums_Replies R
+		JOIN dbo.ActiveForums_Content C ON R.ContentID  = C.ContentID
+		JOIN dbo.yaf_Topic            Y ON R.TopicID    = Y.oTopicID
+		JOIN dbo.yaf_Message          M ON Y.TopiCID    = M.TopicID) S ON T.oContentID = S.ContentID
+WHEN NOT MATCHED THEN INSERT (  TopicID,     ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited, Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
+                      VALUES (S.TopicID, S.MessageID,        1,      1, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   529,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
 
 -- Copy Attachments:
 MERGE INTO dbo.yaf_Attachment T
-USING (SELECT ) S
-WHEN NOT MATCHED THEN INSERT ()
-                      VALUES ();
+USING (SELECT A.Filename, 
+              A.FileData,
+			  A.ContentType,
+			  A.FileSize,
+			  Y.UserID,
+			  M.MessageID 
+        FROM  dbo.activeforums_Attachments A
+		JOIN  dbo.yaf_Message              M ON A.ContentID = M.oContentID 
+		JOIN  dbo.Users                    U ON A.UserID = U.UserID
+		JOIN  dbo.Yaf_user                 Y ON U.UserName = Y.Name
+         ) S ON T.FileName = S.FileName AND T.MessageID = S.MessageID
+WHEN NOT MATCHED THEN INSERT (  MessageID,   UserID,   FileName,      Bytes,   ContentType, Downloads, FileData)
+                      VALUES (S.MessageID, S.USerID, S.FileName, S.FileSize, S.ContentType,       0, S.FileData);
 
 -- Copy Notifications (yaf_Watch):
 MERGE INTO dbo.yaf_WatchForum T
@@ -189,7 +312,7 @@ MERGE INTO dbo.yaf_WatchTopic T
 USING (SELECT ) S
 WHEN NOT MATCHED THEN INSERT ()
                       VALUES ();
-
+                      
 -- Copy group & forum permission // skipped due to incompatible Permission format, please set manually
 
 Exec dbo.[yaf_forum_resync] @BoardID;
@@ -197,14 +320,18 @@ Exec dbo.[yaf_forum_resync] @BoardID;
 GO
 
 -- Undo Table modifications:
-IF Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_forum') and name = N'oForumID')
-  ALTER TABLE dbo.yaf_forum DROP oForumID;
-GO
+IF Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_Message')  and name = N'oContentID')
+  ALTER TABLE dbo.yaf_Message  DROP oContentID;
+
+IF Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_Topic')    and name = N'oTopicID')
+  ALTER TABLE dbo.yaf_Topic    DROP oTopicID;
+
+IF Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_forum')    and name = N'oForumID')
+  ALTER TABLE dbo.yaf_forum    DROP oForumID;
 
 IF Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_category') and name = N'oGroupID')
   ALTER TABLE dbo.yaf_category DROP oGroupID;
-GO
 
-IF Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_board') and name = N'oModuleID')
-  ALTER TABLE dbo.yaf_board DROP oModuleID;
+IF Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_board')    and name = N'oModuleID')
+  ALTER TABLE dbo.yaf_board    DROP oModuleID;
 GO
