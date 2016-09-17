@@ -304,14 +304,26 @@ WHEN NOT MATCHED THEN INSERT (  MessageID,   UserID,   FileName,      Bytes,   C
 
 -- Copy Notifications (yaf_Watch):
 MERGE INTO dbo.yaf_WatchForum T
-USING (SELECT ) S
-WHEN NOT MATCHED THEN INSERT ()
-                      VALUES ();
+USING (SELECT Y.UserID,
+              N.ForumID,
+			  F.LastAccessDate
+        FROM dbo.ActiveForums_Forums_Tracking F
+		JOIN dbo.Yaf_Forum                    N On F.ForumID  = N.oForumID
+		JOIN dbo.Users                        U On F.UserID   = U.UserID
+		JOIN dbo.Yaf_User                     Y on u.UserName = Y.Name) S ON T.ForumID = S.ForumID and T.UserID = S.UserID
+WHEN NOT MATCHED THEN INSERT (  ForumID,   UserID,          Created,     LastMail)
+                      VALUES (S.ForumID, S.UserID, S.LastAccessDate, GetUTCDate());
 
 MERGE INTO dbo.yaf_WatchTopic T
-USING (SELECT ) S
-WHEN NOT MATCHED THEN INSERT ()
-                      VALUES ();
+USING (SELECT Y.UserID,
+              N.TopicID,
+			  F.DateAdded
+        FROM dbo.ActiveForums_Topics_Tracking F
+		JOIN dbo.Yaf_Topic                    N On F.TopicID  = N.oTopicID
+		JOIN dbo.Users                        U On F.UserID   = U.UserID
+		JOIN dbo.Yaf_User                     Y on u.UserName = Y.Name) S ON T.TopicID = S.TopicID and T.UserID = S.UserID
+WHEN NOT MATCHED THEN INSERT (  TopicID,   UserID,     Created,     LastMail)
+                      VALUES (S.TopicID, S.UserID, S.DateAdded, GetUTCDate());
                       
 -- Copy group & forum permission // skipped due to incompatible Permission format, please set manually
 

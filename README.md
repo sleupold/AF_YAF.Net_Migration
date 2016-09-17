@@ -66,4 +66,6 @@ Enter Board administration and review/adjust permissions and settings for board,
 ---
 ## Known issues
 
-Script not finished yet!!!
+Script not finished yet - work in progress:
+- datetime values need to be converted to UTC
+- not yet tested
