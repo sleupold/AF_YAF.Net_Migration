@@ -285,7 +285,7 @@ BEGIN TRY
 			WHERE C.isDeleted = 0
 		  ) S ON T.oTopicID = S.TopicID
 	WHEN NOT MATCHED THEN INSERT (   ForumID,     UserID, UserName, UserDisplayName,        Posted,     Topic, Description, Status,   Styles, LinkDate, Views, Priority, PollID, TopicMovedID,      LastPosted, LastMessageID,  LastUserID, LastUserName, LastUserDisplayName,   NumPosts, Flags, AnswerMessageId, LastMessageFlags, TopicImage, oTopicID)
-						  VALUES (S.YForumID, S.AuthorID,     Null,    S.AuthorName, S.DateCreated, S.Subject,   S.Summary,    N'',      N'',     Null,     0,        0,   Null,         Null, S.LastReplyDate,          Null, S.RAuthorID,         Null,       S.RAuthorName, S.TopicID,    529,            Null,              529,       Null,  TopicID);
+						  VALUES (S.YForumID, S.AuthorID,     Null,    S.AuthorName, S.DateCreated, S.Subject,   S.Summary,    N'',      N'',     Null,     0,        0,   Null,         Null, S.LastReplyDate,          Null, S.RAuthorID,         Null,       S.RAuthorName, S.TopicID,    0,            Null,              0,       Null,  TopicID);
 
 
 	PRINT N'Copy Initial Posts:';
@@ -303,7 +303,7 @@ BEGIN TRY
 			JOIN  dbo.Users                U ON C.AuthorID   = U.UserID
 			JOIN  dbo.yaf_User             Y ON U.UserName   = Y.Name AND Y.BoardID = @BoardID) S ON T.oContentID = S.ContentID
 	WHEN NOT MATCHED THEN INSERT (  TopicID, ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited, Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
-						  VALUES (S.TopicID,    Null,        0,      0, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   529,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
+						  VALUES (S.TopicID,    Null,        0,      0, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   0,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
 
 	PRINT N'Copy Replies:';
 	MERGE INTO dbo.yaf_Message T
@@ -323,7 +323,7 @@ BEGIN TRY
 			JOIN  dbo.Users                U ON C.AuthorID   = U.UserID
 			JOIN  dbo.yaf_User             Y ON U.UserName   = Y.Name AND Y.BoardID = @BoardID) S ON T.oContentID = S.ContentID
 	WHEN NOT MATCHED THEN INSERT (  TopicID,     ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited, Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
-						  VALUES (S.TopicID, S.MessageID,        1,      1, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   529,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
+						  VALUES (S.TopicID, S.MessageID,        1,      1, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   0,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
 
 	PRINT N'Copy Attachments:';
 	MERGE INTO dbo.yaf_Attachment T
