@@ -23,7 +23,6 @@ IF NOT Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_T
 IF NOT Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_Message')  AND name = N'oContentID')
   ALTER TABLE dbo.yaf_Message  ADD oContentID Int Null;
 
-
 GO
 
 /* Specify your original moduleID here:               */
@@ -38,8 +37,9 @@ BEGIN TRY
 	DECLARE @oModuleID     int = 553; 
 	DECLARE @tplBoardID    int = 1;
 	/* -------------------------------------------------- */
-	-- N'0;13;|1134;||'
+
 	-- Get PortalID:
+	PRINT N'*** start migration ***';
 	DECLARE @oPortalID   int = (SELECT PortalID FROM dbo.Modules WHERE ModuleID = @oModuleID);
 	DECLARE @TZOffsetMin int = - DATEPART(TZOFFSET, SYSDATETIMEOFFSET());
 
@@ -53,21 +53,21 @@ BEGIN TRY
 	-- get the boardID:
 	DECLARE @boardID int = (SELECT BoardID FROM dbo.yaf_Board WHERE oModuleID = @oModuleID);
 
-	PRINT N'create accessMasks:';
+	PRINT N'Create accessMasks:';
 	MERGE INTO dbo.yaf_AccessMask  T
 	USING (SELECT @boardID as BoardID, [Name], [Flags], SortOrder FROM dbo.yaf_AccessMask WHERE BoardID = @tplBoardID) S 
 		   ON T.BoardID = S.BoardID and T.SortOrder = S.SortOrder
 	WHEN NOT MATCHED THEN INSERT (  BoardID, [Name], [Flags],   SortOrder) 
 						  VALUES (S.BoardID, S.Name, S.Flags, S.SortOrder);
 
-	PRINT N'Create default Roles:';
-	PRINT N'Create YAF Groups from DNN Roles (used only):';
+	PRINT N'Create YAF Groups from DNN Roles (only used ones)';
+	PRINT N'a. Create default Roles:';
 	MERGE INTO dbo.yaf_Group T
 	USING (SELECT * FROM dbo.yaf_Group WHERE BoardID = @tplBoardID and Flags != 0) S ON T.BoardID = @BoardID AND T.Name = S.Name
 	WHEN NOT MATCHED THEN INSERT ( BoardID,   [Name],   [Flags],   PMLimit,   Style,   SortOrder,   Description,   UsrSigChars,   UsrSigBBCodes,   UsrSigHTMLTags,   UsrAlbums,   UsrAlbumImages) 
 						  VALUES (@BoardID, S.[Name], S.[Flags], S.PMLimit, S.Style, S.SortOrder, S.Description, S.UsrSigChars, S.UsrSigBBCodes, S.UsrSigHTMLTags, S.UsrAlbums, S.UsrAlbumImages);
 
-	PRINT N'Create individual Roles:';
+	PRINT N'b. Create individual Roles:';
 	MERGE INTO dbo.yaf_Group T
 	USING (SELECT RoleName FROM dbo.Roles 
 			WHERE RoleID     IN (SELECT DISTINCT RoleID FROM dbo.ModulePermission P WHERE P.ModuleID = @oModuleID)
@@ -369,11 +369,14 @@ BEGIN TRY
 						  VALUES (S.TopicID, S.UserID, S.DateAdded, GetUTCDate());
                       
 	-- Copy group & forum permission // skipped due to incompatible Permission format, please set manually
+	-- AF Stores each permission for each forum and group as String of format N'0;13;|1134;||'
+	-- | is delimiter for main parts:  RoleIDs Granted | UserIDs granted | SocialGroupID Owners granted | ?
+	-- each part is a list of id's delimited by ; or :   
 
 	Print N'Resynchronize Board Info:';
 	Exec dbo.[yaf_forum_resync] @BoardID;
 
-END TRY
+END TRY;
 
 BEGIN CATCH
     PRINT N'Error '    + CAST(ERROR_NUMBER() AS nVarChar(11)) 
@@ -389,7 +392,7 @@ END; -- IF
 
 GO
 
-Print N'Undo Table modifications:';
+Print N'Undo temporary modifications of YAF.Net tables:';
 IF Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_Message')  AND name = N'oContentID')
   ALTER TABLE dbo.yaf_Message  DROP Column oContentID;
 
