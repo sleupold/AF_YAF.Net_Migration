@@ -34,12 +34,12 @@ DECLARE @oModuleID int = -1;
 BEGIN TRANSACTION;
 
 BEGIN TRY
-	DECLARE @oModuleID     int = 553;
+--  DECLARE @oModuleID     int = 553; -- Test only --
 	DECLARE @tplBoardID    int = 1;
 	/* -------------------------------------------------- */
 
 	-- Get PortalID:
-	PRINT N'*** start migration ***';
+	PRINT N'*** start migration (this may take some time) ***';
 	DECLARE @oPortalID   int = (SELECT PortalID FROM dbo.Modules WHERE ModuleID = @oModuleID);
 	DECLARE @TZOffsetMin int = - DATEPART(TZOFFSET, SYSDATETIMEOFFSET());
 
@@ -191,11 +191,23 @@ BEGIN TRY
 		  LEFT JOIN dbo.UserProfile               CY ON U.UserID  = BD.UserID  AND BD.PropertyDefinitionID = @BDPropertyID
 		  LEFT JOIN dbo.UserProfile               WS ON U.UserID  = WS.UserID  AND WS.PropertyDefinitionID = @WSPropertyID
 		)
-        MERGE INTO dbo.yaf_prov_Profile T
+        MERGE INTO dbo.yaf_user_Profile T
 		USING xProfile S ON T.UserID = S.UserID
 		WHEN NOT MATCHED THEN INSERT (  UserID,   LastUpdatedDate,   Gender,   Blog,   RealName, Interests, Skype, Facebook, Location, BlogServiceUrl,   Birthday, LastSyncedWithDNN, ICQ,   City, MSN, TwitterId, Twitter, BlogServicePassword,   Country, Occupation,   Region, AIM, XMPP, YIM, Google, BlogServiceUsername, GoogleId,  Homepage, FacebookId)
 							  VALUES (S.UserID, S.LastUpdatedDate, 0, N'', S.DisplayName,       N'',   N'',      N'',      N'',            N'', S.Birthday,              Null, N'', S.City, N'',      Null,     N'',                 N'', S.Country,        N'', S.Region, N'',  N'', N'',    N'',                 N'',     Null, S.Website, Null);
 
+	PRINT N'Add Guests Membership for Guest User;';
+	With S AS
+		(SELECT Y.UserID,
+				G.GroupID
+		  FROM  dbo.yaf_Group G
+		  JOIN  dbo.yaf_User  Y ON Y.Name = N'Guest' AND Y.BoardID  = G.BoardID AND G.Flags = 2
+		  WHERE G.BoardID  = @BoardID 
+		)
+		MERGE INTO dbo.yaf_userGroup T
+		USING S ON T.UserID = S.UserID and T.GroupID = S.GroupID
+		WHEN NOT MATCHED THEN INSERT (UserID, GroupID) VALUES (S.UserID, S.GroupID);
+	
 	PRINT N'Populate UserGroups:';
 	With S AS
 		(SELECT Y.UserId,
@@ -281,7 +293,7 @@ BEGIN TRY
 			LEFT JOIN dbo.ActiveForums_Replies     R ON R.ReplyID   = X.LastReplyID
 			LEFT JOIN dbo.ActiveForums_Content     A ON R.ContentID = A.ContentID
 			LEFT JOIN dbo.Users                   U2 ON A.AuthorID  = U2.UserID
-			LEFT JOIN dbo.yaf_User                Y2 ON U1.UserName = Y1.Name AND Y1.BoardID = @BoardID
+			LEFT JOIN dbo.yaf_User                Y2 ON U2.UserName = Y2.Name AND Y2.BoardID = @BoardID
 			WHERE C.isDeleted = 0
 		  ) S ON T.oTopicID = S.TopicID
 	WHEN NOT MATCHED THEN INSERT (   ForumID,     UserID, UserName, UserDisplayName,        Posted,     Topic, Description, Status,   Styles, LinkDate, Views, Priority, PollID, TopicMovedID,      LastPosted, LastMessageID,  LastUserID, LastUserName, LastUserDisplayName,   NumPosts, Flags, AnswerMessageId, LastMessageFlags, TopicImage, oTopicID)
@@ -375,7 +387,7 @@ BEGIN TRY
 	Print N'Resynchronize Board Info:';
 	Exec dbo.[yaf_forum_resync] @BoardID;
 
-END TRY;
+END TRY
 
 BEGIN CATCH
     PRINT N'Error '    + CAST(ERROR_NUMBER() AS nVarChar(11))
@@ -391,7 +403,7 @@ END; -- IF
 
 GO
 
-Print N'Undo temporary modifications of YAF.Net tables:';
+Print N'Undo temporary modifications of YAF.Net tables...';
 IF Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_Message')  AND name = N'oContentID')
   ALTER TABLE dbo.yaf_Message  DROP Column oContentID;
 
@@ -407,3 +419,4 @@ IF Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_categ
 IF Exists (SELECT * FROM sys.columns where object_id = OBJECT_ID(N'dbo.yaf_board')    AND name = N'oModuleID')
   ALTER TABLE dbo.yaf_board    DROP Column oModuleID;
 GO
+Print N'Script finished. Thank you for your patience...'
