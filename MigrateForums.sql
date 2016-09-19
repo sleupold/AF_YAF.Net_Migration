@@ -316,7 +316,7 @@ BEGIN TRY
 				  C.Body,
 				  Y2.UserID      AS RAuthorID,
 				  Y2.DisplayName AS RAuthorName,
-				  IsNull((SELECT COUNT(1) FROM dbo.ActiveForums_Replies), 0) + 1 as NumPosts,
+				  0 AS NumPosts,
 				  F.ForumID AS YForumID,
 				  F.oForumID
 			FROM      dbo.ActiveForums_Content     C
@@ -331,7 +331,7 @@ BEGIN TRY
 			LEFT JOIN dbo.yaf_User                Y2 ON U2.UserName = Y2.Name AND Y2.BoardID = @BoardID
 			WHERE C.isDeleted = 0
 		  ) S ON T.oTopicID = S.TopicID
-	WHEN NOT MATCHED THEN INSERT (   ForumID,     UserID, UserName, UserDisplayName,        Posted,     Topic, Description, Status,   Styles, LinkDate, Views, Priority, PollID, TopicMovedID,      LastPosted, LastMessageID,  LastUserID, LastUserName, LastUserDisplayName,   NumPosts, Flags, AnswerMessageId, LastMessageFlags, TopicImage, oTopicID)
+	WHEN NOT MATCHED THEN INSERT (   ForumID,     UserID, UserName, UserDisplayName,        Posted,     Topic, Description, Status,   Styles, LinkDate, Views, Priority, PollID, TopicMovedID,      LastPosted, LastMessageID,  LastUserID, LastUserName, LastUserDisplayName,  NumPosts, Flags, AnswerMessageId, LastMessageFlags, TopicImage, oTopicID)
 						  VALUES (S.YForumID, S.AuthorID,     Null,    S.AuthorName, S.DateCreated, S.Subject,   S.Summary,    N'',      N'',     Null,     0,        0,   Null,         Null, S.LastReplyDate,          Null, S.RAuthorID,         Null,       S.RAuthorName, S.TopicID,    0,            Null,              0,       Null,  TopicID);
 
 
@@ -351,7 +351,7 @@ BEGIN TRY
 			JOIN  dbo.yaf_User             Y ON U.UserName   = Y.Name AND Y.BoardID = @BoardID
 		  ) S ON T.oContentID = S.ContentID
 	WHEN NOT MATCHED THEN INSERT (  TopicID, ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited, Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
-						  VALUES (S.TopicID,    Null,        0,      0, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   0,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
+						  VALUES (S.TopicID,    Null,        0,      0, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   534,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
 
 	PRINT N'Copy Replies:';
 	MERGE INTO dbo.yaf_Message T
@@ -372,7 +372,7 @@ BEGIN TRY
 			JOIN  dbo.yaf_User             Y ON U.UserName   = Y.Name AND Y.BoardID = @BoardID
 		  ) S ON T.oContentID = S.ContentID
 	WHEN NOT MATCHED THEN INSERT (  TopicID,     ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited, Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
-						  VALUES (S.TopicID, S.MessageID,        1,      1, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   0,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
+						  VALUES (S.TopicID, S.MessageID,        1,      1, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   534,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
 
 	PRINT N'Copy Attachments:';
 	MERGE INTO dbo.yaf_Attachment T
@@ -389,6 +389,15 @@ BEGIN TRY
 		  ) S ON T.FileName = S.FileName AND T.MessageID = S.MessageID
 	WHEN NOT MATCHED THEN INSERT (  MessageID,   UserID,   FileName,      Bytes,   ContentType, Downloads, FileData)
 						  VALUES (S.MessageID, S.USerID, S.FileName, S.FileSize, S.ContentType,       0, S.FileData);
+
+	PRINT N'Update Thread Statistics:'
+	UPDATE T
+	 SET   NumPosts         = N,
+	       LastMessageID    = MaxID,
+		   LastMessageFlags = 534
+	FROM dbo.yaf_Topic T
+	JOIN (SELECT TopicID, Count(1) N, Max(MessageID) MaxID FROM dbo.yaf_Message GROUP BY TopicID) M ON T.TopicID = M.TopicID
+	WHERE NumPosts = 0;
 
 	PRINT N'Copy Forum Subscriptions (yaf_Watch):';
 	MERGE INTO dbo.yaf_WatchForum T
