@@ -247,6 +247,15 @@ BEGIN TRY
 		USING S ON T.UserID = S.UserID and T.GroupID = S.GroupID
 		WHEN NOT MATCHED THEN INSERT (UserID, GroupID) VALUES (S.UserID, S.GroupID);
 
+	PRINT N'Raise Access Mask for Administrators:';
+	MERGE INTO dbo.yaf_User T
+	USING (SELECT UserID 
+			FROM  dbo.yaf_UserGroup R
+			JOIN  dbo.yaf_Group     G ON R.GroupID = G.GroupID 
+			WHERE G.Flags = 1 AND G.BoardID = @BoardID
+		   ) S ON T.UserID = S.UserID
+	WHEN MATCHED THEN UPDATE SET FLAGS = 99;
+
 	Print 'Populate aspnet_usersInRoles:';
 	MERGE INTO dbo.aspnet_usersInRoles T
 	USING (SELECT U.UserId, R.RoleID 
@@ -272,8 +281,8 @@ BEGIN TRY
 				  C.CategoryID
 			FROM  dbo.activeforums_Forums F
 			JOIN  dbo.yaf_category        C ON F.ForumGroupID = C.oGroupID
-			WHERE F.ParentForumID = 0) S
-	   ON S.CategoryID = T.CategoryID AND T.Name = S.ForumName
+			WHERE F.ParentForumID = 0
+		  ) S ON S.CategoryID = T.CategoryID AND T.Name = S.ForumName
 	WHEN NOT MATCHED THEN INSERT (  CategoryID,   ParentID,  [Name], Description, SortOrder, LastPosted, LastTopicID, LastMessageID, LastUserID, LastUserName, LastUserDisplayName,     NumTopics, NumPosts, RemoteURL, Flags, ThemeURL, PollGroupID, ImageURL, Styles, IsModeratedNewTopicOnly, oForumID)
 						  VALUES (S.CategoryID,       Null, S.FName,     S.FDesc, S.SortOrder, S.LPDate,        Null,          Null,       Null,         Null,                Null, S.TotalTopics, S.TPosts,      Null,     4,     Null,        Null,     Null,   Null,                      0, S.ForumID);
 
@@ -288,8 +297,8 @@ BEGIN TRY
 				  Y.ForumID As ParentID
 			FROM  dbo.activeforums_Forums F
 			JOIN  dbo.yaf_Category        C ON F.ForumGroupID  = C.oGroupID
-			JOIN  dbo.yaf_Forum           Y ON F.ParentForumID = Y.oForumID) S
-	   ON S.CategoryID = T.CategoryID AND T.Name = S.ForumName
+			JOIN  dbo.yaf_Forum           Y ON F.ParentForumID = Y.oForumID
+		  ) S ON S.CategoryID = T.CategoryID AND T.Name = S.ForumName
 	WHEN NOT MATCHED THEN INSERT (  CategoryID,   ParentID,  [Name], Description, SortOrder, LastPosted, LastTopicID, LastMessageID, LastUserID, LastUserName, LastUserDisplayName,     NumTopics, NumPosts, RemoteURL, Flags, ThemeURL, PollGroupID, ImageURL, Styles, IsModeratedNewTopicOnly, oForumID)
 						  VALUES (S.CategoryID, S.ParentID, S.FName,     S.FDesc, S.SortOrder, S.LPDate,        Null,          Null,       Null,         Null,                Null, S.TotalTopics, S.TPosts,      Null,     4,     Null,        Null,     Null,   Null,                      0, S.ForumID);
 
@@ -339,7 +348,8 @@ BEGIN TRY
 			JOIN  dbo.ActiveForums_Content C ON R.ContentID  = C.ContentID
 			JOIN  dbo.yaf_Topic            T ON R.TopicID    = T.oTopicID
 			JOIN  dbo.Users                U ON C.AuthorID   = U.UserID
-			JOIN  dbo.yaf_User             Y ON U.UserName   = Y.Name AND Y.BoardID = @BoardID) S ON T.oContentID = S.ContentID
+			JOIN  dbo.yaf_User             Y ON U.UserName   = Y.Name AND Y.BoardID = @BoardID
+		  ) S ON T.oContentID = S.ContentID
 	WHEN NOT MATCHED THEN INSERT (  TopicID, ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited, Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
 						  VALUES (S.TopicID,    Null,        0,      0, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   0,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
 
@@ -359,7 +369,8 @@ BEGIN TRY
 			JOIN  dbo.yaf_Topic            T ON R.TopicID    = T.oTopicID
 			JOIN  dbo.yaf_Message          M ON T.TopicID    = M.TopicID
 			JOIN  dbo.Users                U ON C.AuthorID   = U.UserID
-			JOIN  dbo.yaf_User             Y ON U.UserName   = Y.Name AND Y.BoardID = @BoardID) S ON T.oContentID = S.ContentID
+			JOIN  dbo.yaf_User             Y ON U.UserName   = Y.Name AND Y.BoardID = @BoardID
+		  ) S ON T.oContentID = S.ContentID
 	WHEN NOT MATCHED THEN INSERT (  TopicID,     ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited, Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
 						  VALUES (S.TopicID, S.MessageID,        1,      1, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   0,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
 
@@ -375,7 +386,7 @@ BEGIN TRY
 			JOIN  dbo.yaf_Message              M ON A.ContentID = M.oContentID
 			JOIN  dbo.Users                    U ON A.UserID = U.UserID
 			JOIN  dbo.yaf_User                 Y ON U.UserName = Y.Name
-			 ) S ON T.FileName = S.FileName AND T.MessageID = S.MessageID
+		  ) S ON T.FileName = S.FileName AND T.MessageID = S.MessageID
 	WHEN NOT MATCHED THEN INSERT (  MessageID,   UserID,   FileName,      Bytes,   ContentType, Downloads, FileData)
 						  VALUES (S.MessageID, S.USerID, S.FileName, S.FileSize, S.ContentType,       0, S.FileData);
 
@@ -388,7 +399,8 @@ BEGIN TRY
 			JOIN dbo.Yaf_Forum                    N On F.ForumID  = N.oForumID
 			JOIN dbo.Users                        U On F.UserID   = U.UserID
 			JOIN dbo.Yaf_User                     Y on U.UserName = Y.Name AND Y.BoardID = @BoardID
-			GROUP BY Y.UserID, N.ForumID ) S ON T.ForumID = S.ForumID and T.UserID = S.UserID
+			GROUP BY Y.UserID, N.ForumID
+		  ) S ON T.ForumID = S.ForumID and T.UserID = S.UserID
 	WHEN NOT MATCHED THEN INSERT (  ForumID,   UserID,          Created,     LastMail)
 						  VALUES (S.ForumID, S.UserID, S.LastAccessDate, GetUTCDate());
 
@@ -401,9 +413,22 @@ BEGIN TRY
 			JOIN dbo.Yaf_Topic                    N On F.TopicID  = N.oTopicID
 			JOIN dbo.Users                        U On F.UserID   = U.UserID
 			JOIN dbo.Yaf_User                     Y on u.UserName = Y.Name AND Y.BoardID = @BoardID
-			GROUP BY Y.UserID, N.TopicID ) S ON T.TopicID = S.TopicID and T.UserID = S.UserID
+			GROUP BY Y.UserID, N.TopicID
+		  ) S ON T.TopicID = S.TopicID and T.UserID = S.UserID
 	WHEN NOT MATCHED THEN INSERT (  TopicID,   UserID,     Created,     LastMail)
 						  VALUES (S.TopicID, S.UserID, S.DateAdded, GetUTCDate());
+
+	PRINT N'Create Admin Access to Forums:';
+	MERGE INTO dbo.yaf_ForumAccess T
+	USING (SELECT GroupID, ForumID, M.AccessMaskID
+			FROM  dbo.yaf_AccessMask M
+			JOIN  dbo.yaf_Group      G ON M.BoardID = G.BoardID AND G.Flags = 1
+			JOIN  dbo.yaf_Category   C ON M.BoardID = C.BoardID AND M.Flags = 2047
+			JOIN  dbo.yaf_Forum      F ON F.CategoryID = C.CategoryID
+			WHERE M.BoardID = @BoardID
+		  ) S ON T.ForumID = S.ForumID AND T.GroupID = S.GroupID
+	WHEN NOT MATCHED THEN INSERT (  GroupID,   ForumID,   AccessMaskID)
+						VALUES (S.GroupID, S.ForumID, S.AccessMaskID);
 
 	-- Copy group & forum permission // skipped due to incompatible Permission format, please set manually
 	-- AF Stores each permission for each forum and group as String of format N'0;13;|1134;||'
