@@ -208,6 +208,31 @@ BEGIN TRY
 		USING S ON T.UserID = S.UserID and T.GroupID = S.GroupID
 		WHEN NOT MATCHED THEN INSERT (UserID, GroupID) VALUES (S.UserID, S.GroupID);
 	
+	PRINT N'Add All users to Registered Group;';
+	With S AS
+		(SELECT Y.UserID,
+				G.GroupID
+		  FROM  dbo.yaf_Group G
+		  JOIN  dbo.yaf_User  Y ON Y.Name != N'Guest' AND Y.BoardID  = G.BoardID AND G.Flags = 4
+		  WHERE G.BoardID  = @BoardID 
+		)
+		MERGE INTO dbo.yaf_userGroup T
+		USING S ON T.UserID = S.UserID and T.GroupID = S.GroupID
+		WHEN NOT MATCHED THEN INSERT (UserID, GroupID) VALUES (S.UserID, S.GroupID);
+
+	PRINT N'Add Superusers to Administrators Group;';
+	With S AS
+		(SELECT Y.UserID,
+				G.GroupID
+		  FROM  dbo.yaf_Group G
+		  JOIN  dbo.yaf_User  Y ON  Y.BoardID  = G.BoardID AND G.Flags = 1
+		  JOIN  dbo.Users     U ON  U.UserName = Y.Name AND U.IsSuperUser = 1
+		  WHERE G.BoardID  = @BoardID
+		)
+		MERGE INTO dbo.yaf_userGroup T
+		USING S ON T.UserID = S.UserID and T.GroupID = S.GroupID
+		WHEN NOT MATCHED THEN INSERT (UserID, GroupID) VALUES (S.UserID, S.GroupID);
+
 	PRINT N'Populate UserGroups:';
 	With S AS
 		(SELECT Y.UserId,
@@ -222,13 +247,14 @@ BEGIN TRY
 		USING S ON T.UserID = S.UserID and T.GroupID = S.GroupID
 		WHEN NOT MATCHED THEN INSERT (UserID, GroupID) VALUES (S.UserID, S.GroupID);
 
-	/*
 	Print 'Populate aspnet_usersInRoles:';
-	/// Skipped due to logical bugs in YAF (missing dependency on boardid), doesn't seem to be used
 	MERGE INTO dbo.aspnet_usersInRoles T
-	USING (SELECT UserId, RoleID FROM dbo.UserRoles) S ON T.UserID = S.UserID and T.RoleID = S.RoleID
+	USING (SELECT U.UserId, R.RoleID 
+	        FROM  dbo.yaf_UserGroups G
+	        JOIN  dbo.aspnet_Roles   R ON 
+			JOIN  dbo.aspnet_Users   U ON 
+	      ) S ON T.UserID = S.UserID and T.RoleID = S.RoleID
 	WHEN NOT MATCHED THEN INSERT (UserID, RoleID) VALUES (S.UserID, S.RoleID);
-	*/
 
 	PRINT N'Copy AF Forum Groups to YAF.Net Categories:';
 	MERGE INTO dbo.yaf_category T
