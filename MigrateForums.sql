@@ -254,7 +254,18 @@ BEGIN TRY
 			JOIN  dbo.yaf_Group     G ON R.GroupID = G.GroupID 
 			WHERE G.Flags = 1 AND G.BoardID = @BoardID
 		   ) S ON T.UserID = S.UserID
-	WHEN MATCHED THEN UPDATE SET FLAGS = 99;
+	WHEN MATCHED AND T.Flags != 98 THEN UPDATE SET FLAGS = 98;
+
+	PRINT N'Raise Access Mask for Superusers:';
+	MERGE INTO dbo.yaf_User T
+	USING (SELECT R.UserID 
+			FROM  dbo.yaf_UserGroup R
+			JOIN  dbo.yaf_Group     G ON R.GroupID = G.GroupID
+			JOIN  dbo.yaf_user      Y ON R.UserID = Y.UserID
+			JOIN  dbo.Users         U ON U.UserName = Y.Name AND U.isSuperuser = 1
+			WHERE G.Flags = 1 AND G.BoardID = @BoardID
+		   ) S ON T.UserID = S.UserID
+	WHEN MATCHED AND T.Flags != 99 THEN UPDATE SET FLAGS = 99;
 
 	Print 'Populate aspnet_usersInRoles:';
 	MERGE INTO dbo.aspnet_usersInRoles T
@@ -351,7 +362,7 @@ BEGIN TRY
 			JOIN  dbo.yaf_User             Y ON U.UserName   = Y.Name AND Y.BoardID = @BoardID
 		  ) S ON T.oContentID = S.ContentID
 	WHEN NOT MATCHED THEN INSERT (  TopicID, ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited, Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
-						  VALUES (S.TopicID,    Null,        0,      0, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   534,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
+						  VALUES (S.TopicID,    Null,        0,      0, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   533,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
 
 	PRINT N'Copy Replies:';
 	MERGE INTO dbo.yaf_Message T
@@ -372,7 +383,7 @@ BEGIN TRY
 			JOIN  dbo.yaf_User             Y ON U.UserName   = Y.Name AND Y.BoardID = @BoardID
 		  ) S ON T.oContentID = S.ContentID
 	WHEN NOT MATCHED THEN INSERT (  TopicID,     ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited, Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
-						  VALUES (S.TopicID, S.MessageID,        1,      1, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   534,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
+						  VALUES (S.TopicID, S.MessageID,        1,      1, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   533,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
 
 	PRINT N'Copy Attachments:';
 	MERGE INTO dbo.yaf_Attachment T
