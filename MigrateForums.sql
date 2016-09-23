@@ -192,10 +192,10 @@ BEGIN TRY
 		  LEFT JOIN dbo.UserProfile               CY ON U.UserID  = BD.UserID  AND BD.PropertyDefinitionID = @BDPropertyID
 		  LEFT JOIN dbo.UserProfile               WS ON U.UserID  = WS.UserID  AND WS.PropertyDefinitionID = @WSPropertyID
 		)
-        MERGE INTO dbo.yaf_user_Profile T
+        MERGE INTO dbo.yaf_userProfile T
 		USING xProfile S ON T.UserID = S.UserID
-		WHEN NOT MATCHED THEN INSERT (  UserID,   LastUpdatedDate,   Gender,   Blog,   RealName, Interests, Skype, Facebook, Location, BlogServiceUrl,   Birthday, LastSyncedWithDNN, ICQ,   City, MSN, TwitterId, Twitter, BlogServicePassword,   Country, Occupation,   Region, AIM, XMPP, YIM, Google, BlogServiceUsername, GoogleId,  Homepage, FacebookId)
-							  VALUES (S.UserID, S.LastUpdatedDate, 0, N'', S.DisplayName,       N'',   N'',      N'',      N'',            N'', S.Birthday,              Null, N'', S.City, N'',      Null,     N'',                 N'', S.Country,        N'', S.Region, N'',  N'', N'',    N'',                 N'',     Null, S.Website, Null);
+		WHEN NOT MATCHED THEN INSERT (  UserID,   LastUpdatedDate,   LastActivity, ApplicationName, IsAnonymous, UserName,  Gender,   Blog,      RealName, Interests, Skype, Facebook, Location, BlogServiceUrl,   Birthday, LastSyncedWithDNN, ICQ,   City, MSN, TwitterId, Twitter, BlogServicePassword,   Country, Occupation,   Region, AIM, XMPP, YIM, Google, BlogServiceUsername, GoogleId,  Homepage, FacebookId)
+							  VALUES (S.UserID, S.LastUpdatedDate, S.LastActivity,   N'DotNetNuke',           0, S.Username,     0,    N'', S.DisplayName,       N'',   N'',      N'',      N'',            N'', S.Birthday,              Null, N'', S.City, N'',      Null,     N'',                 N'', S.Country,        N'', S.Region, N'',  N'', N'',    N'',                 N'',     Null, S.Website,       Null);
 
 	PRINT N'Add Guests Membership for Guest User;';
 	With S AS
@@ -276,6 +276,7 @@ BEGIN TRY
 			JOIN  dbo.yaf_Group      G ON Y.GroupID = G.GroupID
 	        JOIN  dbo.aspnet_Roles   R ON G.Name = R.RoleName AND G.BoardID = @BoardID
 			JOIN  dbo.yaf_User       U ON Y.UserID = U.UserID
+			WHERE U.ProviderUserKey Is Not Null
 	      ) S ON T.UserID = S.UserID and T.RoleID = S.RoleID
 	WHEN NOT MATCHED THEN INSERT (UserID, RoleID) VALUES (S.UserID, S.RoleID);
 
