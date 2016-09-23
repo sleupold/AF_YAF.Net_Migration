@@ -136,6 +136,7 @@ BEGIN TRY
 
 
 	-- Populate Users:
+	/* YAF User Flags: None = 0, IsHostAdmin = 1, IsApproved = 2, IsGuest = 4, IsCaptchaExcluded = 8, IsActiveExcluded = 16, IsDST = 32, IsDirty = 64 */
 	DECLARE @DefaultTimeZoneOffset SmallInt = (SELECT TimezoneOffset FROM dbo.Portals WHERE PortalID = @oPortalID);
 	DECLARE @TZPropertyID          Int      = (SELECT PropertyDefinitionID FROM dbo.ProfilePropertyDefinition WHERE PortalID = @oPortalID
 												AND DataType = (SELECT EntryID FROM dbo.Lists WHERE ListName = N'DataType' AND Value = N'TimeZone'));
@@ -302,9 +303,15 @@ BEGIN TRY
 	WHEN NOT MATCHED THEN INSERT (  CategoryID,   ParentID,  [Name], Description, SortOrder, LastPosted, LastTopicID, LastMessageID, LastUserID, LastUserName, LastUserDisplayName,     NumTopics, NumPosts, RemoteURL, Flags, ThemeURL, PollGroupID, ImageURL, Styles, IsModeratedNewTopicOnly, oForumID)
 						  VALUES (S.CategoryID, S.ParentID, S.FName,     S.FDesc, S.SortOrder, S.LPDate,        Null,          Null,       Null,         Null,                Null, S.TotalTopics, S.TPosts,      Null,     4,     Null,        Null,     Null,   Null,                      0, S.ForumID);
 
+	/* YAF Topic Flags: None = 0, IsLocked = 1, IsDeleted = 8, IsPersistent = 512, IsQuestion = 1024 */
 	PRINT N'Create Threads:';
 	MERGE INTO dbo.yaf_topic T
 	USING (SELECT T.*,
+	              CASE T.StatusID WHEN 0 THEN N'INFORMATIC' WHEN 1 THEN N'QUESTION' WHEN 3 THEN N'SOLVED' ELSE N'' END AS YState,
+				    CASE WHEN T.isDeleted = 1 THEN    8 ELSE 0 END 
+				  + CASE WHEN T.IsLocked  = 1 THEN    1 ELSE 0 END
+				  + CASE WHEN T.IsPinned  = 1 THEN    0 ELSE 0 END -- no equivalent?
+				  + CASE WHEN T.StatusID  = 1 THEN 1024 ELSE 0 END AS YFlags,
 				  DateAdd(n, @TZOffsetMin, DateAdd(ss, X.LastTopicDate, '01/01/1970 00:00:00 AM')) AS LastTopicDate, -- TZ shifted
 				  DateAdd(n, @TZOffsetMin, DateAdd(ss, X.LastReplyDate, '01/01/1970 00:00:00 AM')) AS LastReplyDate, -- TZ shifted
 				  X.LastReplyID,
@@ -331,13 +338,19 @@ BEGIN TRY
 			LEFT JOIN dbo.yaf_User                Y2 ON U2.UserName = Y2.Name AND Y2.BoardID = @BoardID
 			WHERE C.isDeleted = 0
 		  ) S ON T.oTopicID = S.TopicID
-	WHEN NOT MATCHED THEN INSERT (   ForumID,     UserID, UserName, UserDisplayName,        Posted,     Topic, Description, Status,   Styles, LinkDate, Views, Priority, PollID, TopicMovedID,      LastPosted, LastMessageID,  LastUserID, LastUserName, LastUserDisplayName,  NumPosts, Flags, AnswerMessageId, LastMessageFlags, TopicImage, oTopicID)
-						  VALUES (S.YForumID, S.AuthorID,     Null,    S.AuthorName, S.DateCreated, S.Subject,   S.Summary,    N'',      N'',     Null,     0,        0,   Null,         Null, S.LastReplyDate,          Null, S.RAuthorID,         Null,       S.RAuthorName, S.TopicID,    0,            Null,              0,       Null,  TopicID);
+	WHEN NOT MATCHED THEN INSERT (   ForumID,     UserID, UserName, UserDisplayName,        Posted,     Topic, Description, Status,   Styles, LinkDate, Views, Priority, PollID, TopicMovedID,      LastPosted, LastMessageID,  LastUserID, LastUserName, LastUserDisplayName,  NumPosts,  Flags, AnswerMessageId, LastMessageFlags, TopicImage, oTopicID)
+						  VALUES (S.YForumID, S.AuthorID,     Null,    S.AuthorName, S.DateCreated, S.Subject,   S.Summary, YState,      N'',     Null,     0,        0,   Null,         Null, S.LastReplyDate,          Null, S.RAuthorID,         Null,       S.RAuthorName, S.TopicID, YFlags,            Null,              0,       Null,  TopicID);
 
-
+	/* YAF MessageFlags: IsHtml = 1, IsBBCode = 2, IsSmilies = 4, IsDeleted = 8, IsApproved = 16, IsLocked = 32, NotFormatted = 64, IsReported = 128, IsPersistant = 512 */
 	PRINT N'Copy Initial Posts:';
 	MERGE INTO dbo.yaf_Message T
 	USING (SELECT C.ContentID,
+	              512 + 4 -- persistant and smilies allowed
+				  + 1 -- containes HTML, else + 2
+				  + CASE WHEN T.IsPinned   = 1 THEN    0 ELSE 0 END -- no equivalent?
+				  + CASE WHEN T.isDeleted  = 1 THEN    8 ELSE 0 END
+				  + CASE WHEN T.IsApproved = 1 THEN   16 ELSE 0 END
+				  + CASE WHEN T.IsLocked   = 1 THEN   32 ELSE 0 END AS YFlags,
 				  Y.UserID      AS AuthorID,
 				  Y.DisplayName AS AuthorName,
 				  C.Body,
@@ -350,12 +363,17 @@ BEGIN TRY
 			JOIN  dbo.Users                U ON C.AuthorID   = U.UserID
 			JOIN  dbo.yaf_User             Y ON U.UserName   = Y.Name AND Y.BoardID = @BoardID
 		  ) S ON T.oContentID = S.ContentID
-	WHEN NOT MATCHED THEN INSERT (  TopicID, ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited, Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
-						  VALUES (S.TopicID,    Null,        0,      0, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   534,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
+	WHEN NOT MATCHED THEN INSERT (  TopicID, ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited,  Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
+						  VALUES (S.TopicID,    Null,        0,      0, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null, YFlags,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
 
 	PRINT N'Copy Replies:';
 	MERGE INTO dbo.yaf_Message T
 	USING (SELECT C.ContentID,
+	              512 + 4 -- persistant and smilies allowed
+				  + 1 -- containes HTML, else + 2
+				  + CASE WHEN R.isDeleted  = 1 THEN    8 ELSE 0 END
+				  + CASE WHEN R.IsApproved = 1 THEN   16 ELSE 0 END
+				  + CASE WHEN T.IsLocked   = 1 THEN   32 ELSE 0 END AS YFlags,
 				  Y.UserID      AS AuthorID,
 				  Y.DisplayName AS AuthorName,
 				  C.Subject,
@@ -371,8 +389,8 @@ BEGIN TRY
 			JOIN  dbo.Users                U ON C.AuthorID   = U.UserID
 			JOIN  dbo.yaf_User             Y ON U.UserName   = Y.Name AND Y.BoardID = @BoardID
 		  ) S ON T.oContentID = S.ContentID
-	WHEN NOT MATCHED THEN INSERT (  TopicID,     ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited, Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
-						  VALUES (S.TopicID, S.MessageID,        1,      1, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null,   534,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
+	WHEN NOT MATCHED THEN INSERT (  TopicID,     ReplyTo, Position, Indent,     UserID, UserName, UserDisplayName,        Posted, Message,          IP, Edited,  Flags, EditReason, IsModeratorChanged, DeleteReason, ExternalMessageId, ReferenceMessageId, BlogPostID, EditedBy,  oContentID)
+						  VALUES (S.TopicID, S.MessageID,        1,      1, S.AuthorID,     Null,    S.AuthorName, S.DateCreated,  S.Body, S.IPAddress,   Null, YFlags,       Null,                  0,         Null,              Null,               Null,       Null,     Null, S.ContentID);
 
 	PRINT N'Copy Attachments:';
 	MERGE INTO dbo.yaf_Attachment T
