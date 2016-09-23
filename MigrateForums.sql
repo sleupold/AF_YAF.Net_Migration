@@ -270,12 +270,15 @@ BEGIN TRY
 
 	Print 'Populate aspnet_usersInRoles:';
 	MERGE INTO dbo.aspnet_usersInRoles T
-	USING (SELECT U.UserId, R.RoleID 
-	        FROM  dbo.yaf_UserGroups G
-	        JOIN  dbo.aspnet_Roles   R ON 
-			JOIN  dbo.aspnet_Users   U ON 
+	USING (SELECT U.ProviderUserKey AS UserId, 
+	              R.RoleID 
+	        FROM  dbo.yaf_UserGroup  Y
+			JOIN  dbo.yaf_Group      G ON Y.GroupID = G.GroupID
+	        JOIN  dbo.aspnet_Roles   R ON G.Name = R.RoleName AND G.BoardID = @BoardID
+			JOIN  dbo.yaf_User       U ON Y.UserID = U.UserID
 	      ) S ON T.UserID = S.UserID and T.RoleID = S.RoleID
 	WHEN NOT MATCHED THEN INSERT (UserID, RoleID) VALUES (S.UserID, S.RoleID);
+
 
 	PRINT N'Copy AF Forum Groups to YAF.Net Categories:';
 	MERGE INTO dbo.yaf_category T
