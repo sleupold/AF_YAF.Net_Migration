@@ -361,10 +361,10 @@ BEGIN TRY
 	USING (SELECT C.ContentID,
 	              512 + 4 -- persistant and smilies allowed
 				  + 1 -- containes HTML, else + 2
-				  + CASE WHEN T.IsPinned   = 1 THEN    0 ELSE 0 END -- no equivalent?
-				  + CASE WHEN T.isDeleted  = 1 THEN    8 ELSE 0 END
-				  + CASE WHEN T.IsApproved = 1 THEN   16 ELSE 0 END
-				  + CASE WHEN T.IsLocked   = 1 THEN   32 ELSE 0 END AS YFlags,
+				  + CASE WHEN R.IsPinned   = 1 THEN    0 ELSE 0 END -- no equivalent?
+				  + CASE WHEN R.isDeleted  = 1 THEN    8 ELSE 0 END
+				  + CASE WHEN R.IsApproved = 1 THEN   16 ELSE 0 END
+				  + CASE WHEN R.IsLocked   = 1 THEN   32 ELSE 0 END AS YFlags,
 				  Y.UserID      AS AuthorID,
 				  Y.DisplayName AS AuthorName,
 				  C.Body,
@@ -387,7 +387,7 @@ BEGIN TRY
 				  + 1 -- containes HTML, else + 2
 				  + CASE WHEN R.isDeleted  = 1 THEN    8 ELSE 0 END
 				  + CASE WHEN R.IsApproved = 1 THEN   16 ELSE 0 END
-				  + CASE WHEN T.IsLocked   = 1 THEN   32 ELSE 0 END AS YFlags,
+				  + CASE WHEN X.IsLocked   = 1 THEN   32 ELSE 0 END AS YFlags,
 				  Y.UserID      AS AuthorID,
 				  Y.DisplayName AS AuthorName,
 				  C.Subject,
@@ -398,6 +398,7 @@ BEGIN TRY
 				  M.MessageID
 			FROM  dbo.ActiveForums_Replies R
 			JOIN  dbo.ActiveForums_Content C ON R.ContentID  = C.ContentID
+			JOIN  dbo.ActiveForums_Topics  X ON R.TopicID    = X.TopicID
 			JOIN  dbo.yaf_Topic            T ON R.TopicID    = T.oTopicID
 			JOIN  dbo.yaf_Message          M ON T.TopicID    = M.TopicID
 			JOIN  dbo.Users                U ON C.AuthorID   = U.UserID
