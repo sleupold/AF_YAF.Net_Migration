@@ -322,8 +322,13 @@ BEGIN TRY
 	PRINT N'Create Threads:';
 	MERGE INTO dbo.yaf_topic T
 	USING (SELECT T.*,
-	              CASE T.StatusID WHEN 0 THEN N'INFORMATIC' WHEN 1 THEN N'QUESTION' WHEN 3 THEN N'SOLVED' ELSE N'' END AS YState,
-				    CASE WHEN T.isDeleted = 1 THEN    8 ELSE 0 END 
+	              CASE T.StatusID WHEN 0 THEN N'INFORMATIC' 
+				                  WHEN 1 THEN N'QUESTION' 
+								  WHEN 3 THEN N'SOLVED' 
+								  ELSE N'' 
+			      END AS YState,
+				    CASE WHEN T.isDeleted = 1 
+					       OR C.IsDeleted = 1 THEN    8 ELSE 0 END 
 				  + CASE WHEN T.IsLocked  = 1 THEN    1 ELSE 0 END
 				  + CASE WHEN T.IsPinned  = 1 THEN    0 ELSE 0 END -- no equivalent?
 				  + CASE WHEN T.StatusID  = 1 THEN 1024 ELSE 0 END AS YFlags,
@@ -351,10 +356,10 @@ BEGIN TRY
 			LEFT JOIN dbo.ActiveForums_Content     A ON R.ContentID = A.ContentID
 			LEFT JOIN dbo.Users                   U2 ON A.AuthorID  = U2.UserID
 			LEFT JOIN dbo.yaf_User                Y2 ON U2.UserName = Y2.Name AND Y2.BoardID = @BoardID
-			WHERE C.isDeleted = 0
+			-- WHERE C.isDeleted = 0 AND T.IsDeleted = 0
 		  ) S ON T.oTopicID = S.TopicID
-	WHEN NOT MATCHED THEN INSERT (   ForumID,     UserID, UserName, UserDisplayName,        Posted,     Topic, Description, Status,   Styles, LinkDate, Views, Priority, PollID, TopicMovedID,      LastPosted, LastMessageID,  LastUserID, LastUserName, LastUserDisplayName,  NumPosts,  Flags, AnswerMessageId, LastMessageFlags, TopicImage, oTopicID)
-						  VALUES (S.YForumID, S.AuthorID,     Null,    S.AuthorName, S.DateCreated, S.Subject,   S.Summary, YState,      N'',     Null,     0,        0,   Null,         Null, S.LastReplyDate,          Null, S.RAuthorID,         Null,       S.RAuthorName,         0, YFlags,            Null,              0,       Null,  TopicID);
+	WHEN NOT MATCHED THEN INSERT (   ForumID,     UserID, UserName, UserDisplayName,        Posted,     Topic, Description, Status,   Styles, LinkDate,       Views, Priority, PollID, TopicMovedID,      LastPosted, LastMessageID,  LastUserID, LastUserName, LastUserDisplayName,  NumPosts,  Flags, AnswerMessageId, LastMessageFlags, TopicImage, oTopicID)
+						  VALUES (S.YForumID, S.AuthorID,     Null,    S.AuthorName, S.DateCreated, S.Subject,   S.Summary, YState,      N'',     Null, S.ViewCount,        0,   Null,         Null, S.LastReplyDate,          Null, S.RAuthorID,         Null,       S.RAuthorName,         0, YFlags,            Null,              0,       Null,  TopicID);
 
 	/* YAF MessageFlags: IsHtml = 1, IsBBCode = 2, IsSmilies = 4, IsDeleted = 8, IsApproved = 16, IsLocked = 32, NotFormatted = 64, IsReported = 128, IsPersistant = 512 */
 	PRINT N'Copy Initial Posts:';
@@ -363,7 +368,8 @@ BEGIN TRY
 	              512 + 4 -- persistant and smilies allowed
 				  + 1 -- containes HTML, else + 2
 				  + CASE WHEN R.IsPinned   = 1 THEN    0 ELSE 0 END -- no equivalent?
-				  + CASE WHEN R.isDeleted  = 1 THEN    8 ELSE 0 END
+				  + CASE WHEN R.isDeleted  = 1 
+				           OR C.IsDeleted  = 1 THEN    8 ELSE 0 END
 				  + CASE WHEN R.IsApproved = 1 THEN   16 ELSE 0 END
 				  + CASE WHEN R.IsLocked   = 1 THEN   32 ELSE 0 END AS YFlags,
 				  Y.UserID      AS AuthorID,
