@@ -330,8 +330,10 @@ BEGIN TRY
 				    CASE WHEN T.isDeleted = 1 
 					       OR C.IsDeleted = 1 THEN    8 ELSE 0 END 
 				  + CASE WHEN T.IsLocked  = 1 THEN    1 ELSE 0 END
-				  + CASE WHEN T.IsPinned  = 1 THEN    0 ELSE 0 END -- no equivalent?
 				  + CASE WHEN T.StatusID  = 1 THEN 1024 ELSE 0 END AS YFlags,
+				    CASE WHEN T.IsAnnounce= 1 THEN    2
+					     WHEN T.IsPinned  = 1 THEN    1 
+					                          ELSE    0 END AS YPrio,
 				  DateAdd(n, @TZOffsetMin, DateAdd(ss, X.LastTopicDate, '01/01/1970 00:00:00 AM')) AS LastTopicDate, -- TZ shifted
 				  DateAdd(n, @TZOffsetMin, DateAdd(ss, X.LastReplyDate, '01/01/1970 00:00:00 AM')) AS LastReplyDate, -- TZ shifted
 				  X.LastReplyID,
@@ -366,8 +368,7 @@ BEGIN TRY
 	MERGE INTO dbo.yaf_Message T
 	USING (SELECT C.ContentID,
 	              512 + 4 -- persistant and smilies allowed
-				  + 1 -- containes HTML, else + 2
-				  + CASE WHEN R.IsPinned   = 1 THEN    0 ELSE 0 END -- no equivalent?
+				  + 1     -- containes HTML, else + 2
 				  + CASE WHEN R.isDeleted  = 1 
 				           OR C.IsDeleted  = 1 THEN    8 ELSE 0 END
 				  + CASE WHEN R.IsApproved = 1 THEN   16 ELSE 0 END
@@ -391,7 +392,7 @@ BEGIN TRY
 	MERGE INTO dbo.yaf_Message T
 	USING (SELECT C.ContentID,
 	              512 + 4 -- persistant and smilies allowed
-				  + 1 -- containes HTML, else + 2
+				  + 1     -- containes HTML, else + 2
 				  + CASE WHEN R.isDeleted  = 1 THEN    8 ELSE 0 END
 				  + CASE WHEN R.IsApproved = 1 THEN   16 ELSE 0 END
 				  + CASE WHEN X.IsLocked   = 1 THEN   32 ELSE 0 END AS YFlags,
